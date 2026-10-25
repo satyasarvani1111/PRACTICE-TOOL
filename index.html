@@ -829,16 +829,17 @@ body{background:#f6f3ee;color:#344447}
 .presentation-cell.playing{background:transparent;box-shadow:none;padding:2px 1px}
 .presentation-clean-cycle{padding:10px 0 14px;border-bottom:1px solid #e1e7e4}
 .presentation-clean-line{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;width:100%;margin-top:6px}
+.presentation-clean-line+.presentation-clean-line{margin-top:20px}
 .presentation-clean-beat{min-width:0;border-right:1px solid #e1e7e4;padding:6px 6px 10px}
 .presentation-clean-beat:last-child{border-right:0}
 .presentation-clean-subgrid{display:grid;width:100%;min-width:0}
 .presentation-clean-cell{min-width:0;padding:2px 3px 6px;text-align:center}
 .presentation-clean-cell .presentation-swara{white-space:nowrap;overflow:hidden;text-overflow:clip;font-size:26px;line-height:1.05}
-.presentation-clean-cell .presentation-lyric{white-space:nowrap;overflow:hidden;text-overflow:clip;font-size:19px;line-height:1.1;margin-top:8px}
+.presentation-clean-cell .presentation-lyric{white-space:nowrap;overflow:hidden;text-overflow:clip;font-size:25px;line-height:1.1;margin-top:8px}
 .presentation-clean-cell.playing{background:#fff0ec;border-radius:8px}
 .presentation-clean-cell.playing .presentation-swara{color:#a9433d}
 .presentation-clean-cell.playing .presentation-swara::after{content:"";display:block;width:56%;height:2px;margin:5px auto 0;border-radius:2px;background:#b65349}
-@media (max-width:900px){.presentation-clean-cell .presentation-swara{font-size:21px}.presentation-clean-cell .presentation-lyric{font-size:16px}}
+@media (max-width:900px){.presentation-clean-cell .presentation-swara{font-size:21px}.presentation-clean-cell .presentation-lyric{font-size:21px}}
 .presentation-cell.playing .presentation-swara{position:relative}
 .presentation-cell.playing .presentation-swara::after{content:"";display:block;width:70%;height:2px;margin:4px auto 0;border-radius:2px;background:#b65349}
 .presentation-cell.range-selected{background:#eef8f5;border-radius:5px}
@@ -3848,7 +3849,7 @@ function fitPresentationText(){
     const avail=el.clientWidth;if(!avail||el.scrollWidth<=avail)return;
     const isLyric=el.classList.contains("presentation-lyric");
     const min=isLyric?11:14;
-    let px=parseFloat(getComputedStyle(el).fontSize)||(isLyric?19:26);
+    let px=parseFloat(getComputedStyle(el).fontSize)||(isLyric?25:26);
     px=Math.max(min,Math.floor(px*avail/el.scrollWidth*2)/2);
     el.style.fontSize=px+"px";
     while(px>min&&el.scrollWidth>el.clientWidth){px-=.5;el.style.fontSize=px+"px";}
@@ -4585,8 +4586,8 @@ async function exportMP3(){
    One layout routine decides, per row, how many note positions sit on one visual line.
    Wrapping only changes where positions are drawn; position order, ids, timing and
    highlighting still come from the unchanged note/timeline data. */
-const MP4_LAYOUT={W:1240,H:1754,marginX:82,top:72,bottom:62,labelH:30,lineH:100,rowPad:22,maxRowStretch:44,
-  swaraBase:26,swaraComfort:22,swaraMin:15,lyricBase:19,lyricComfort:15,lyricMin:11,minCellW:56,padX:5};
+const MP4_LAYOUT={W:1240,H:1754,marginX:82,top:72,bottom:62,labelH:30,lineH:118,rowPad:22,maxRowStretch:44,
+  swaraBase:26,swaraComfort:22,swaraMin:15,lyricBase:25,lyricComfort:17,lyricMin:11,minCellW:56,padX:5};
 let _mp4MeasureCtx=null;
 const _mp4LayoutCache=new WeakMap();
 function mp4MeasureCtx(){if(!_mp4MeasureCtx)_mp4MeasureCtx=document.createElement("canvas").getContext("2d");return _mp4MeasureCtx;}
@@ -4691,7 +4692,7 @@ function drawCleanMp4Frame(canvas,snap,timeSec,step,pageIndexOverride=null){
     const info=layout.infos[r];
     const {n,count,per,lines}=info;
     const cellW=innerW/n;
-    const cellH=L.lineH-10;
+    const cellH=96; // cell height stays 96; the rest of lineH is the gap between wrapped lines
     if(rowIndex>0){
       ctx.strokeStyle="#dfe6e2";ctx.lineWidth=1;
       ctx.beginPath();ctx.moveTo(marginX,y);ctx.lineTo(W-marginX,y);ctx.stroke();
@@ -4713,7 +4714,7 @@ function drawCleanMp4Frame(canvas,snap,timeSec,step,pageIndexOverride=null){
 
       if(col===0&&line>0){
         ctx.strokeStyle="#edf1ef";ctx.lineWidth=1;
-        ctx.beginPath();ctx.moveTo(marginX,gy-5);ctx.lineTo(W-marginX,gy-5);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(marginX,gy-11);ctx.lineTo(W-marginX,gy-11);ctx.stroke();
       }
       if(active){
         ctx.fillStyle="rgba(182,83,73,.09)";
@@ -4741,7 +4742,7 @@ function drawCleanMp4Frame(canvas,snap,timeSec,step,pageIndexOverride=null){
         const fs=mp4FitFont(ctx,lyric,L.lyricBase,L.lyricMin,maxTextW);
         ctx.fillStyle="#39756c";
         ctx.font=`500 ${fs}px Georgia,"Times New Roman",serif`;
-        ctx.fillText(lyric,x+cellW/2,gy+68);
+        ctx.fillText(lyric,x+cellW/2,gy+73);
       }
       if(active){
         ctx.strokeStyle="#b65349";ctx.lineWidth=2;
