@@ -3659,7 +3659,7 @@ function snapshotRowRhythm(snap,row){
   }
   return base;
 }
-function presentationActiveRows(snap){
+function presentationContentRows(snap){
   /* Prefer the rows currently rendered in the workstation. This keeps Preview/MP4
      aligned with what the user can actually see, including later rows. */
   if(Array.isArray(snap.domActiveRows)&&snap.domActiveRows.length) return [...snap.domActiveRows].sort((a,b)=>a-b);
@@ -3694,6 +3694,22 @@ function presentationActiveRows(snap){
     if(hasContent)rows.add(r);
   }
   return [...rows].sort((a,b)=>a-b);
+}
+/* Rows that carry notation, lyrics or an exercise label, PLUS any completely empty rows that sit
+   between them. An empty row between two exercises is a deliberate full-cycle rest: it stays in the
+   timeline (same tala/jathi/subdivision timing as any row), is shown on screen and highlighted beat by beat.
+   Empty rows before the first or after the last exercise are still trimmed, as before. */
+function presentationActiveRows(snap){
+  const content=presentationContentRows(snap);
+  if(content.length<2)return content;
+  const first=content[0],last=content[content.length-1];
+  const out=[];
+  for(let r=first;r<=last;r++)out.push(r);
+  return out;
+}
+function presentationRestRowSet(snap){
+  const content=new Set(presentationContentRows(snap));
+  return new Set(presentationActiveRows(snap).filter(r=>!content.has(r)));
 }
 function orderedPresentationCells(snap){
   const cells=[];
@@ -3793,6 +3809,7 @@ function renderPresentationPage(){
     const cycle=document.createElement("div");cycle.className="presentation-cycle presentation-clean-cycle";
     const customLabel=String(snap.rowLabels?.[r]||"").trim();
     if(customLabel){const label=document.createElement("div");label.className="presentation-row-label exercise-custom-label";label.textContent=customLabel;cycle.appendChild(label);}
+    else if(presentationRestRowSet(snap).has(r)){const label=document.createElement("div");label.className="presentation-row-label exercise-custom-label";label.textContent="Rest – one full cycle";cycle.appendChild(label);}
     const beatsPerLine=presentationBeatsPerLine(per,beats.length);
     for(let start=0;start<beats.length;start+=beatsPerLine){
       const line=document.createElement("div");line.className="presentation-clean-line";line.style.gridTemplateColumns=`repeat(${beatsPerLine},minmax(0,1fr))`;
@@ -4163,11 +4180,21 @@ async function renderExportAudioBuffer(snap,opts={}){
   if(cfg.tanpura)scheduleOfflineTanpura(ctx,snap,totalSeconds,cfg.shrutiOffset);
   // Only embed metronome clicks when explicitly requested (MP4 export) and the
   // app's own metronome toggle is on; MP3 export is unaffected either way.
+  const clickSeconds=60/Math.max(40,Math.min(200,Number(cfg.bpm)||100));
   if(opts.includeMetronome && state.metro){
-    const beatSeconds=60/Math.max(40,Math.min(200,Number(cfg.bpm)||100));
-    for(let t=0;t<totalSeconds;t+=beatSeconds){
+    for(let t=0;t<totalSeconds;t+=clickSeconds){
       scheduleOfflineMetronomeClick(ctx,t);
     }
+  }else if(state.metro){
+    // Audio-only export (MP3): the metronome keeps ticking through empty rest rows so the pause is
+    // audible and the next exercise still starts exactly one full cycle later.
+    const restRows=presentationRestRowSet(snap);
+    restRows.forEach(r=>{
+      const items=timeline.filter(t=>t.row===r);
+      if(!items.length)return;
+      const st=items[0].start,en=items[items.length-1].start+items[items.length-1].duration;
+      for(let t=st;t<en-.001;t+=clickSeconds)scheduleOfflineMetronomeClick(ctx,t);
+    });
   }
   return {buffer:await ctx.startRendering(),step:timeline[0]?.duration||0,totalSeconds,cells,cfg,timeline};
 }
@@ -4678,7 +4705,7 @@ function mp4PageLayout(snap){
     if(isLast&&lay.groups.length>1)return; // a short last page must not set the spacing for the others
     u=Math.min(u,Math.max(0,spare[pi])/weights[pi]);
   });
-  cached=Object.assign(lay,{s,u,spare,weights});
+  cached=Object.assign(lay,{s,u,spare,weights,rest:presentationRestRowSet(snap)});
   _mp4LayoutCache.set(snap,cached);
   return cached;
 }
@@ -4740,7 +4767,8 @@ function drawCleanMp4Frame(canvas,snap,timeSec,step,pageIndexOverride=null){
     ctx.textAlign="left";
     ctx.fillStyle="#6f817d";
     ctx.font='600 11px "Helvetica Neue",Arial,sans-serif';
-    ctx.fillText(exerciseLabel?`EXERCISE ${exerciseLabel}`:`ROW ${r}`,marginX,y+16);
+    const isRest=layout.rest.has(r);
+    ctx.fillText((exerciseLabel?`EXERCISE ${exerciseLabel}`:`ROW ${r}`)+(isRest?"  •  REST – one full cycle":""),marginX,y+16);
 
     const gridTop=y+L.labelH;
     for(let i=0;i<count;i++){
@@ -4757,7 +4785,7 @@ function drawCleanMp4Frame(canvas,snap,timeSec,step,pageIndexOverride=null){
         ctx.beginPath();ctx.moveTo(marginX,gapMid);ctx.lineTo(W-marginX,gapMid);ctx.stroke();
       }
       if(active){
-        ctx.fillStyle="rgba(182,83,73,.09)";
+        ctx.fillStyle=isRest?"rgba(182,83,73,.18)":"rgba(182,83,73,.09)";   // clearer highlight when no swara is shown
         ctx.beginPath();
         ctx.roundRect(x+2,gy+2,Math.max(8,cellW-4),cellH-4,7);
         ctx.fill();
